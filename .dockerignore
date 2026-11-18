@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!pyproject.toml
+!streetdelta/
+!streetdelta/**
+!dashboard/
+!dashboard/**

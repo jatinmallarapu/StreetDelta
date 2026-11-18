@@ -1,0 +1,27 @@
+# Default ports bind to localhost because this is a single-reviewer demo.
+services:
+  postgis:
+    image: postgis/postgis:16-3.5
+    environment:
+      POSTGRES_USER: streetdelta
+      POSTGRES_PASSWORD: streetdelta_demo
+      POSTGRES_DB: streetdelta
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/20-streetdelta.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streetdelta -d streetdelta && psql -U streetdelta -d streetdelta -tAc 'select 1 from map_change_candidates limit 0'"]
+      interval: 4s
+      timeout: 4s
+      retries: 20
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://streetdelta:streetdelta_demo@postgis:5432/streetdelta
+      STREETDELTA_MODE: demo
+    depends_on:
+      postgis:
+        condition: service_healthy
+    ports: ["127.0.0.1:8000:8000"]
+volumes:
+  postgres:

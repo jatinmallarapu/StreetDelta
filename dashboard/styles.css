@@ -1,0 +1,28 @@
+/* The queue stays readable on small screens even if the map renderer is unavailable. */
+:root { color-scheme: dark; font: 15px/1.5 system-ui, sans-serif; --line:#294159; --panel:#122338; --ink:#eaf4ff; --sub:#a7bfd6; --accent:#72e0ce; }
+* { box-sizing:border-box; }
+body { margin:0; background:#0a1727; color:var(--ink); }
+header { display:flex; justify-content:space-between; align-items:center; padding:18px clamp(16px,4vw,56px); border-bottom:1px solid var(--line); }
+h1,h2,p { margin:0; }
+h1 { font-size:25px; letter-spacing:-.04em; }
+h2 { font-size:16px; }
+header p,#status { color:var(--sub); }
+#mode { border:1px solid var(--line); border-radius:999px; padding:5px 11px; color:var(--accent); }
+main { display:grid; grid-template-columns:minmax(0,1fr) minmax(295px,350px); min-height:calc(100dvh - 89px); }
+.map-column { position:relative; background:#172941; min-height:380px; }
+#map { width:100%; height:100%; min-height:380px; }
+.legend { position:absolute; bottom:28px; left:16px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+.dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin:0 4px 0 8px; }
+.changed { background:#fe806f; }.new { background:#51dfc3; }
+aside { padding:15px; border-left:1px solid var(--line); max-height:calc(100dvh - 89px); overflow:auto; }
+.pane { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+label,select,input { display:block; width:100%; }
+select { padding:7px; margin:4px 0 10px; background:#0c1c2e; color:var(--ink); border:1px solid var(--line); border-radius:5px; }
+input { accent-color:var(--accent); }
+button { background:#0e2034; border:1px solid var(--line); color:var(--ink); padding:8px; border-radius:6px; cursor:pointer; }
+button:hover { border-color:var(--accent); }
+button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+#queue button { display:block; text-align:left; width:100%; margin-top:7px; }
+#detail p { margin:8px 0; overflow-wrap:anywhere; }
+#detail button { margin-right:8px; }
+@media (max-width:760px) { main { display:block; } aside { max-height:none; border-left:0; } }
