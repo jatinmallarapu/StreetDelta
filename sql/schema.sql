@@ -13,6 +13,7 @@ CREATE INDEX IF NOT EXISTS images_geom_idx ON images USING gist(geom);
 CREATE INDEX IF NOT EXISTS images_captured_idx ON images(captured_at);
 CREATE TABLE IF NOT EXISTS detections (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source_key text UNIQUE,
     image_id text NOT NULL REFERENCES images(image_id),
     kind text NOT NULL,
     score double precision NOT NULL CHECK (score BETWEEN 0 AND 1),
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS detections (
     ocr_confidence double precision,
     est_depth_m double precision
 );
+ALTER TABLE detections ADD COLUMN IF NOT EXISTS source_key text UNIQUE;
 CREATE TABLE IF NOT EXISTS baseline_features (
     id text PRIMARY KEY,
     kind text NOT NULL,

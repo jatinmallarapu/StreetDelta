@@ -1,9 +1,13 @@
 """Keep the offline demo and PostgreSQL repository behind the same review contract."""
 
+import json
+from hashlib import sha256
 from threading import Lock
 
 import psycopg
 from psycopg.types.json import Jsonb
+
+from .change import feature_id
 
 
 class MemoryStore:
@@ -47,22 +51,109 @@ class PostGISStore:
 
     def seed(self, records):
         with psycopg.connect(self.dsn, connect_timeout=10) as db, db.cursor() as cursor:
-            cursor.executemany(
-                """INSERT INTO map_change_candidates(id,change_type,kind,confidence,geom,payload)
+            self._insert_candidates(cursor, records)
+
+    def _insert_candidates(self, cursor, records):
+        cursor.executemany(
+            """INSERT INTO map_change_candidates(id,change_type,kind,confidence,geom,payload)
                     VALUES (%s,%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326),%s)
                     ON CONFLICT (id) DO NOTHING""",
+            [
+                (
+                    row["id"],
+                    row["type"],
+                    row["kind"],
+                    row["confidence"],
+                    *row["coordinates"],
+                    Jsonb({**row, "source_mode": self.mode}),
+                )
+                for row in records
+            ],
+        )
+
+    def stage(self, metadata, detections, baseline, observations, records):
+        if self.mode != "live":
+            raise ValueError("Raw evidence is only staged in live mode")
+        images = {str(row["image_id"]): row for row in metadata}
+        with psycopg.connect(self.dsn, connect_timeout=10) as db, db.cursor() as cursor:
+            cursor.executemany(
+                """INSERT INTO images(image_id,captured_at,camera_type,heading,geom,metadata)
+                   VALUES (%s,%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),4326),%s)
+                   ON CONFLICT(image_id) DO UPDATE SET captured_at=excluded.captured_at,
+                   camera_type=excluded.camera_type,heading=excluded.heading,
+                   geom=excluded.geom,metadata=excluded.metadata""",
+                [
+                    (
+                        key,
+                        row["captured_at"],
+                        row["camera_type"],
+                        row["heading"],
+                        *row["coordinates"],
+                        Jsonb({k: v for k, v in row.items() if k != "image_url"}),
+                    )
+                    for key, row in images.items()
+                ],
+            )
+            cursor.executemany(
+                """INSERT INTO detections(source_key,image_id,kind,score,bbox,mask_rle,
+                   ocr_value,ocr_confidence,est_depth_m) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ON CONFLICT(source_key) DO NOTHING""",
+                [
+                    (
+                        sha256(json.dumps(row, sort_keys=True).encode()).hexdigest(),
+                        str(row["image_id"]),
+                        row["kind"],
+                        row["score"],
+                        row["bbox"],
+                        Jsonb(row["mask_rle"]) if row.get("mask_rle") else None,
+                        row.get("ocr_value"),
+                        row.get("ocr_confidence"),
+                        row.get("est_depth_m"),
+                    )
+                    for row in detections
+                    if str(row["image_id"]) in images
+                ],
+            )
+            cursor.executemany(
+                """INSERT INTO baseline_features(id,kind,value,geom,source_tags)
+                   VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),26916),%s)
+                   ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,value=excluded.value,
+                   geom=excluded.geom,source_tags=excluded.source_tags""",
                 [
                     (
                         row["id"],
-                        row["type"],
                         row["kind"],
-                        row["confidence"],
-                        *row["coordinates"],
-                        Jsonb({**row, "source_mode": self.mode}),
+                        row.get("value"),
+                        row["east"],
+                        row["north"],
+                        Jsonb(row.get("source_tags", {})),
                     )
-                    for row in records
+                    for row in baseline
                 ],
             )
+            cursor.executemany(
+                """INSERT INTO observed_features(id,kind,value,geom,evidence)
+                   VALUES (%s,%s,%s,ST_SetSRID(ST_MakePoint(%s,%s),26916),%s)
+                   ON CONFLICT(id) DO UPDATE SET evidence=excluded.evidence""",
+                [
+                    (
+                        feature_id(kind, value, point),
+                        kind,
+                        value,
+                        float(point[0]),
+                        float(point[1]),
+                        Jsonb(
+                            {
+                                "residual_m": residual,
+                                "image_ids": sorted(view.image_id for view in views),
+                            }
+                        ),
+                    )
+                    for (kind, value), point, residual, views in observations
+                ],
+            )
+            # Candidates and their evidence commit together, and reruns retain review decisions.
+            self._insert_candidates(cursor, records)
 
     def list(self, bounds, change_type, minimum):
         statement = """SELECT payload || jsonb_build_object('review',review)

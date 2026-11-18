@@ -65,7 +65,7 @@ python -m streetdelta.perception data/raw/*.jpg --revision MODEL_COMMIT_SHA > ru
 python -m streetdelta.live_pipeline --images runs/mapillary.parquet --detections runs/detections.jsonl --baseline runs/osm-points.json --out runs/candidates.json
 ```
 
-Image names must use their Mapillary IDs. Add reviewed OCR values to speed-limit detections before triangulation. Keep camera conventions and source attribution with each input. The Airflow example runs the metadata refresh. For PostGIS staging, run against an initialized **separate live database**, pass `--write-postgis`, then serve with `STREETDELTA_MODE=live`.
+Image names must use their Mapillary IDs. Add reviewed OCR values to speed-limit detections before triangulation. Keep camera conventions and source attribution with each input. The Airflow example runs the metadata refresh. For PostGIS staging, run against a fresh live database initialized with `sql/schema.sql`, pass `--write-postgis`, then serve with `STREETDELTA_MODE=live`. The importer commits image metadata, detections, the baseline, fused observations and candidates in one transaction. Rerunning the same input preserves review decisions.
 
 [Build a map baseline](docs/baseline.md) · [Confidence and architecture](docs/architecture.md) · [Evaluation protocol](docs/method.md)
 

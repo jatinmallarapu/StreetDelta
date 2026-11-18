@@ -22,11 +22,18 @@ def confidence(rays, residual, as_of):
     return 1 / (1 + exp(-odds))
 
 
-def build_changes(rays, baseline, as_of, max_distance=15):
+def feature_id(kind, value, point):
+    return sha256(
+        f"{kind}:{float(point[0]):.1f}:{float(point[1]):.1f}:{value}".encode()
+    ).hexdigest()[:16]
+
+
+def build_changes(rays, baseline, as_of, max_distance=15, *, observations=None):
     matched = set()
     proposals = []
+    observations = fuse(rays) if observations is None else observations
     for (kind, value), point, residual, views in sorted(
-        fuse(rays), key=lambda x: (-len(x[3]), x[2], x[1][0], x[1][1])
+        observations, key=lambda x: (-len(x[3]), x[2], x[1][0], x[1][1])
     ):
         eligible = []
         for record in baseline:
@@ -41,9 +48,7 @@ def build_changes(rays, baseline, as_of, max_distance=15):
             if value == old.get("value"):
                 continue
         lon, lat = TO_GPS.transform(*point)
-        ident = sha256(
-            f"{kind}:{round(float(point[0]), 1)}:{round(float(point[1]), 1)}:{value}".encode()
-        ).hexdigest()[:16]
+        ident = feature_id(kind, value, point)
         proposals.append(
             {
                 "id": ident,

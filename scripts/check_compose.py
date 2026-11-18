@@ -48,6 +48,45 @@ def main():
     )
     assert output.stdout.strip() == "1"
     print("Dashboard, spatial queue, and persisted review verified")
+    # Run inside the Compose network. The host never exposes the database port.
+    subprocess.run(
+        ["docker", "compose", "exec", "-T", "api", "python", "-"],
+        input="""
+import os
+import psycopg
+from streetdelta.change import build_changes
+from streetdelta.fixture import AS_OF, generate
+from streetdelta.geo import TO_GPS, fuse
+from streetdelta.store import PostGISStore
+
+rays, baseline, _ = generate()
+metadata = [
+    {"image_id": ray.image_id, "captured_at": ray.captured_at, "camera_type": "perspective",
+     "heading": ray.bearing, "coordinates": TO_GPS.transform(ray.east, ray.north)}
+    for ray in rays
+]
+detections = [{"image_id": ray.image_id, "kind": ray.kind, "score": ray.score,
+               "bbox": [0, 0, 100, 100]} for ray in rays]
+observations = fuse(rays)
+records = build_changes(rays, baseline, AS_OF, observations=observations)
+for row in records:
+    row["id"] = "integration-live-" + row["id"]
+dsn = os.environ["DATABASE_URL"]
+store = PostGISStore(dsn)
+for _ in range(2):
+    store.stage(metadata, detections, baseline, observations, records)
+with psycopg.connect(dsn) as db:
+    assert db.execute("select count(*) from images").fetchone()[0] == 240
+    assert db.execute("select count(*) from detections").fetchone()[0] == 240
+    assert db.execute("select count(*) from observed_features").fetchone()[0] == 60
+stored = store.list(None, None, 0)
+assert len(stored) == len(records)
+assert all(row["id"].startswith("integration-live-") for row in stored)
+print("Evidence staging is idempotent and synthetic candidates are isolated")
+""",
+        text=True,
+        check=True,
+    )
 
 
 if __name__ == "__main__":
