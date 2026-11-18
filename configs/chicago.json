@@ -1,0 +1,12 @@
+{
+  "name": "Chicago Loop, West Loop and River North",
+  "bbox": [
+    -87.659,
+    41.869,
+    -87.616,
+    41.902
+  ],
+  "metric_crs": "EPSG:26916",
+  "grid_degrees": 0.005,
+  "match_distance_m": 15
+}

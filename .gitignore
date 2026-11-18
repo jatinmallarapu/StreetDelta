@@ -1,0 +1,14 @@
+# Keep tokens, source imagery and generated review state local.
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+runs/
+data/raw/
+models/
+*.parquet
+*.tif
+*.jpg
+*.jpeg
